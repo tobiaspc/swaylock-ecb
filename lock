@@ -82,7 +82,6 @@ end=$(date +%s%N);
 end=$(expr $end / 1000000);
 echo Time total: `expr $end - $start_t`
 
-exit
 # try to use swaylock with prepared parameters
 if ! "${swaylock_cmd}" "${indicator_params[@]}" "${output_params[@]}" >/dev/null 2>&1; then
     # We have failed, lets get back to stock one
