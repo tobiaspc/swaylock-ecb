@@ -1,40 +1,40 @@
 #!/bin/bash
-start_t=$(date +%s%N);
-start_t=$(expr $start_t / 1000000);
 
-start=$(date +%s%N);
-start=$(expr $start / 1000000);
+# Total timer in ms
+start_t=$(expr $(date +%s%N) / 1000000)
 
-FOLDER=`dirname "$BASH_SOURCE"`
-PARAMS=""
-ICON="$FOLDER/icons/lock.png"
-
-set -o pipefail
-trap 'rm -f "${images[*]}"' EXIT
-set -o errexit -o noclobber -o nounset
-
-FOLDER=`dirname "$BASH_SOURCE"`
+# Local timer in ms
+start=$(expr $(date +%s%N) / 1000000)
 
 # define locker command
 swaylock_cmd="swaylock"
+
+FOLDER=`dirname "$BASH_SOURCE"`
+ICON="$FOLDER/icons/lock.png"
+
+# Remove temporary images on exit
+set -o pipefail
+trap 'rm -f "${images[*]}"' EXIT
+set -o errexit -o noclobber -o nounset
 
 # Need these to capture multiple monitors' screenshots
 declare -a outputs
 declare -a images
 
+end=$(expr $(date +%s%N) / 1000000)
+echo Time setup: `expr $end - $start` ms
+start=$(expr $(date +%s%N) / 1000000)
 
-# parse the json swaymsg for outputs via jq and filter for active monitors
+# Parse the swaymsg json for outputs via jq and filter for active monitors
 poutputs=$(swaymsg -t get_outputs | jq -r '.[]  | select(.active == true) | .name')
 while read -r line; do
     outputs+=($line)
     images+=($(mktemp --suffix=.png))
 done <<< "$poutputs"
 
-end=$(date +%s%N);
-end=$(expr $end / 1000000);
-echo Time detect displays: `expr $end - $start`
-
-
+end=$(expr $(date +%s%N) / 1000000)
+echo Time display detect: `expr $end - $start` ms
+start=$(expr $(date +%s%N) / 1000000)
 
 indicator_params=("--indicator-radius" "85")
 output_params=""
@@ -42,46 +42,35 @@ output_params=""
 arraylen=${#outputs[@]}
 for (( i=0; i<${arraylen}; i++ ));
 do
-	start=$(date +%s%N);
-	start=$(expr $start / 1000000);
 
-    # Take screenshot
-    command -- "grim" -o "${outputs[$i]}" "${images[$i]}"
+  # Take screenshot
+  command -- "grim" -o "${outputs[$i]}" "${images[$i]}"
     
-	end=$(date +%s%N);
-	end=$(expr $end / 1000000);
-	echo Time grim output "$i": `expr $end - $start`
- 
+	end=$(expr $(date +%s%N) / 1000000)
+  echo Time grim for output "${outputs[$i]}": `expr $end - $start` ms
+  start=$(expr $(date +%s%N) / 1000000)   
     
-    output_params+=("-i" "${outputs[$i]}:${images[$i]}" "-K")
-    
-    start=$(date +%s%N);
-	start=$(expr $start / 1000000);
-
-    # Encrypt
-    python3 $FOLDER/encrypt.py --ecb "${images[$i]}" "${images[$i]}"
+  # Encrypt
+  python3 $FOLDER/encrypt.py --ecb "${images[$i]}" "${images[$i]}"
    
-    end=$(date +%s%N);
-	end=$(expr $end / 1000000);
-	echo Time encrypt image "$i": `expr $end - $start`
+  end=$(expr $(date +%s%N) / 1000000)
+	echo Time encrypt image from output "${outputs[$i]}": `expr $end - $start` ms
+	start=$(expr $(date +%s%N) / 1000000)
+ 
+  # Pixelate and add lock icon
+  convert "${images[$i]}[10%]" '-sample' '1000%' -level "10%,90%" "$ICON" -gravity center -composite "${images[$i]}"
+  end=$(expr $(date +%s%N) / 1000000)
+	echo Time convert image from output "${outputs[$i]}": `expr $end - $start` ms
+  start=$(expr $(date +%s%N) / 1000000)
 
-	start=$(date +%s%N);
-	start=$(expr $start / 1000000);
-
-   # 
-   	# Pixelate and add lock icon
-   	convert "${images[$i]}[10%]" '-sample' '1000%' -level "10%,90%" "$ICON" -gravity center -composite "${images[$i]}"
-	end=$(date +%s%N);
-	end=$(expr $end / 1000000);
-	echo Time convert image "$i": `expr $end - $start`
-        
+  # Append current image to swaylock params
+  output_params+=("-i" "${outputs[$i]}:${images[$i]}" "-K")
     
 done
 
-end=$(date +%s%N);
-end=$(expr $end / 1000000);
-echo Time total: `expr $end - $start_t`
-
+end=$(expr $(date +%s%N) / 1000000)
+echo Time total: `expr $end - $start_t` ms
+exit
 # try to use swaylock with prepared parameters
 if ! "${swaylock_cmd}" "${indicator_params[@]}" "${output_params[@]}" >/dev/null 2>&1; then
     # We have failed, lets get back to stock one
