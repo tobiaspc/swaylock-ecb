@@ -29,7 +29,7 @@ start=$(expr $(date +%s%N) / 1000000)
 poutputs=$(swaymsg -t get_outputs | jq -r '.[]  | select(.active == true) | .name')
 while read -r line; do
     outputs+=($line)
-    images+=($(mktemp --suffix=.png))
+    images+=($(mktemp --suffix=.ppm))
 done <<< "$poutputs"
 
 end=$(expr $(date +%s%N) / 1000000)
@@ -40,34 +40,42 @@ swaylock_param="-f"
 indicator_params=("--indicator-radius" "85")
 output_params=""
 
-arraylen=${#outputs[@]}
-for (( i=0; i<${arraylen}; i++ ));
+output_count=${#outputs[@]}
+for (( i=0; i<${output_count}; i++ ));
 do
 
   # Take screenshot
-  command -- "grim" -o "${outputs[$i]}" "${images[$i]}"
+  command -- "grim" -t ppm -o "${outputs[$i]}" "${images[$i]}"
     
-	end=$(expr $(date +%s%N) / 1000000)
+  end=$(expr $(date +%s%N) / 1000000)
   echo Time grim for output "${outputs[$i]}": `expr $end - $start` ms
   start=$(expr $(date +%s%N) / 1000000)   
-    
-  # Encrypt
-  python3 $FOLDER/encrypt.py --ecb "${images[$i]}" "${images[$i]}"
-   
-  end=$(expr $(date +%s%N) / 1000000)
-	echo Time encrypt image from output "${outputs[$i]}": `expr $end - $start` ms
-	start=$(expr $(date +%s%N) / 1000000)
+  
+done
+
+
+# Encrypt
+python3 $FOLDER/encrypt.py -i "${images[@]}" -o "${images[@]}"
+ 
+end=$(expr $(date +%s%N) / 1000000)
+echo Time encrypt image from all outputs: `expr $end - $start` ms
+start=$(expr $(date +%s%N) / 1000000)
+
+
+for (( i=0; i<${output_count}; i++ ));
+do
  
   # Pixelate and add lock icon
   convert "${images[$i]}[10%]" '-sample' '1000%' -level "10%,90%" "$ICON" -gravity center -composite "${images[$i]}"
   end=$(expr $(date +%s%N) / 1000000)
-	echo Time convert image from output "${outputs[$i]}": `expr $end - $start` ms
+  echo Time convert image from output "${outputs[$i]}": `expr $end - $start` ms
   start=$(expr $(date +%s%N) / 1000000)
 
   # Append current image to swaylock params
   output_params+=("-i" "${outputs[$i]}:${images[$i]}" "-K")
     
 done
+
 
 end=$(expr $(date +%s%N) / 1000000)
 echo Time total: `expr $end - $start_t` ms
